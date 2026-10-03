@@ -2,6 +2,8 @@ package pro.xiangyu.cashierhelper.tasks
 
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
@@ -50,7 +52,8 @@ class TaskRepositoryTest {
         assertEquals(listOf(1, 2), listOf(a.seq, b.seq))
 
         // A second store over the same file sees what the first one wrote.
-        scope.cancel()
+        // DataStore only lets go of the file once its scope has finished, so wait for that.
+        scope.coroutineContext[Job]!!.cancelAndJoin()
         val reopened = TaskRepository(
             TaskBookStore.create(file, CoroutineScope(SupervisorJob() + Dispatchers.IO)),
         ) { now }
