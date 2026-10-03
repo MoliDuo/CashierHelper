@@ -4,6 +4,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
         android:name=".CashierHelperApplication"
@@ -17,19 +18,27 @@
         android:theme="@style/Theme.CashierHelper"
         android:usesCleartextTraffic="false">
 
+        <!--
+            Screens live here, in the app's own task. The trigger activity below has a
+            different task affinity, so nothing ever gets left in the trigger's task.
+        -->
         <activity
-            android:name=".ui.SettingsActivity"
+            android:name=".ui.MainActivity"
             android:exported="true"
-            android:label="@string/settings_title"
-            android:taskAffinity=""
-            android:theme="@style/Theme.CashierHelper" />
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize" />
 
+        <!--
+            The single launcher icon and the side-key target: take a screenshot and leave.
+            Its own task, never shown in recents, never holds a screen.
+        -->
         <activity
             android:name=".ui.LauncherActivity"
             android:excludeFromRecents="true"
             android:exported="true"
             android:launchMode="singleTask"
             android:noHistory="true"
+            android:taskAffinity="pro.xiangyu.cashierhelper.trigger"
             android:theme="@style/Theme.CashierHelper.Transparent">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -39,6 +48,14 @@
                 android:name="android.app.shortcuts"
                 android:resource="@xml/shortcuts" />
         </activity>
+
+        <receiver
+            android:name=".tasks.TaskActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="pro.xiangyu.cashierhelper.action.RETRY_TASK" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".capture.CashierAccessibilityService"
@@ -56,4 +73,3 @@
     </application>
 
 </manifest>
-

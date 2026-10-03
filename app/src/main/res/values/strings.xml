@@ -1,21 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Cashier 记账</string>
-    <string name="settings_title">设置</string>
-    <string name="settings_shortcut_label">设置</string>
-    <string name="settings_shortcut_long_label">打开 Cashier 记账设置</string>
-    <string name="settings_shortcut_disabled">设置入口当前不可用</string>
+
+    <!-- Launcher shortcut -->
+    <string name="shortcut_open_label">打开记账助手</string>
+    <string name="shortcut_open_long_label">打开 Cashier 记账助手</string>
+
+    <!-- Accessibility service -->
     <string name="accessibility_service_label">Cashier 记账截图服务</string>
-    <string name="accessibility_service_description">仅在你主动触发时截取默认显示屏，并上传到你配置的 Cashier 服务。</string>
-    <string name="notification_channel_name">截图提交结果</string>
-    <string name="notification_channel_description">显示截图提交、分析结果和本地保存结果</string>
-    <string name="message_invalid_configuration">连接配置无效，请重新保存</string>
-    <string name="message_invalid_response">服务器响应格式不兼容</string>
-    <string name="message_document_invalid">该截图无法用于记账</string>
-    <string name="message_query_paused">一分钟内未取得结果，可在设置中继续查询</string>
-    <string name="message_pending_confirmation">请先在设置中处理待确认的提交</string>
-    <string name="message_capacity_reached">任务列表已满，请先清理后再提交</string>
-    <string name="message_image_too_large">截图超过 3 MiB 限制</string>
+    <string name="accessibility_service_description">仅在你双击侧键或点击图标时截取当前屏幕，并上传到你自己的 Cashier 服务。</string>
+
+    <!-- Notification channels and buttons -->
     <string name="channel_progress_name">记账进度</string>
     <string name="channel_progress_description">正在上传和识别账单时显示，不会发出声音</string>
     <string name="channel_results_name">记账结果</string>
@@ -25,4 +20,69 @@
     <string name="notification_action_view">在 Cashier 查看</string>
     <string name="notification_action_retry">重试</string>
     <string name="notification_action_fix">去修复</string>
+
+    <!-- Common actions -->
+    <string name="action_settings">设置</string>
+    <string name="action_back">返回</string>
+    <string name="action_dismiss">知道了</string>
+    <string name="action_fix">去修复</string>
+    <string name="action_connect">去连接</string>
+    <string name="action_update_key">去更新密钥</string>
+    <string name="action_turn_on">去开启</string>
+    <string name="action_set">去设置</string>
+    <string name="action_retry">重试</string>
+    <string name="action_retry_now">立即重试</string>
+    <string name="action_delete">删除</string>
+    <string name="action_show">显示</string>
+    <string name="action_hide">隐藏</string>
+    <string name="action_paste">粘贴</string>
+    <string name="action_open_cashier">打开 Cashier 网页</string>
+    <string name="action_test_and_save">测试并保存</string>
+    <string name="action_save_anyway">仍然保存</string>
+
+    <!-- Home -->
+    <string name="status_ready_title">一切就绪</string>
+    <string name="status_ready_body">双击侧键，截图记账</string>
+    <string name="status_not_connected_title">还没有连接 Cashier</string>
+    <string name="status_not_connected_body">填好服务器地址和 API 密钥后才能记账</string>
+    <string name="status_key_unreadable_title">需要重新填写 API 密钥</string>
+    <string name="status_key_unreadable_body">手机里保存的密钥读取不了</string>
+    <string name="status_key_rejected_title">API 密钥无效</string>
+    <string name="status_key_rejected_body">Cashier 不认这个密钥，可能已被删除或更换</string>
+    <string name="status_service_off_title">截图服务没有开启</string>
+    <string name="status_service_off_body">开启后才能双击侧键截图</string>
+    <string name="status_service_not_running_title">截图服务没有在运行</string>
+    <string name="status_service_not_running_body">显示已开启但没有运行。请在辅助功能里把「Cashier 记账截图服务」关闭再打开</string>
+    <string name="reminder_notifications">通知被关闭了，记账结果可能看不到</string>
+    <string name="reminder_battery">电池没有设为不受限制，后台上传可能被延迟</string>
+    <string name="section_needs_action">需要处理</string>
+    <string name="section_in_progress">进行中</string>
+    <string name="task_attempts">%1$s · 已尝试 %2$d 次</string>
+    <string name="reason_not_configured">刚才双击了侧键，但还没有连接 Cashier，所以没有截图。请先填好服务器地址和 API 密钥。</string>
+    <string name="reason_key_unreadable">刚才双击了侧键，但保存的密钥读取不了，所以没有截图。请重新填写 API 密钥。</string>
+    <string name="reason_service_off">刚才双击了侧键，但截图服务还没有开启，所以没有截图。</string>
+    <string name="reason_service_not_running">截图服务显示已开启，但没有在运行，所以这次没有截图。请在辅助功能里把「Cashier 记账截图服务」关闭再打开。</string>
+
+    <!-- Settings -->
+    <string name="settings_title">设置</string>
+    <string name="settings_connection">连接 Cashier</string>
+    <string name="settings_connection_help">在 Cashier 网页的「设置」里找到「API 密钥」，新建一个密钥并选择要记到的分账，复制后粘贴到这里。完整密钥只显示一次。</string>
+    <string name="settings_key_unreadable">手机里保存的密钥读取不了，请重新填写。</string>
+    <string name="settings_server_address">服务器地址</string>
+    <string name="settings_server_placeholder">cashier.example.com</string>
+    <string name="settings_api_key">API 密钥</string>
+    <string name="settings_testing">正在测试连接…</string>
+    <string name="settings_saved">已连接并保存</string>
+    <string name="settings_status">状态</string>
+    <string name="settings_screenshot_service">截图服务</string>
+    <string name="settings_notifications">通知</string>
+    <string name="settings_battery">电池</string>
+    <string name="service_running">正在运行</string>
+    <string name="service_not_running">已开启但没有运行</string>
+    <string name="service_off">没有开启</string>
+    <string name="toggle_on">已开启</string>
+    <string name="toggle_off">已关闭</string>
+    <string name="battery_unrestricted">不受限制</string>
+    <string name="battery_restricted">受限制</string>
+    <string name="settings_version">版本 %1$s</string>
 </resources>
