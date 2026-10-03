@@ -21,6 +21,7 @@ import pro.xiangyu.cashierhelper.capture.ScreenshotErrorMapper
 import pro.xiangyu.cashierhelper.network.SourceDocumentStatus
 import pro.xiangyu.cashierhelper.network.StatusQueryFailure
 import pro.xiangyu.cashierhelper.network.UploadFailure
+import pro.xiangyu.cashierhelper.notify.NotificationAvailability
 import pro.xiangyu.cashierhelper.ui.SettingsActivity
 
 /**

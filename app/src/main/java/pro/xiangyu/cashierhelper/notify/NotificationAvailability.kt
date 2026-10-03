@@ -1,4 +1,4 @@
-package pro.xiangyu.cashierhelper.feedback
+package pro.xiangyu.cashierhelper.notify
 
 import android.Manifest
 import android.app.NotificationManager
@@ -11,7 +11,7 @@ import androidx.core.content.ContextCompat
 /**
  * Single source of truth for whether a posted notification would actually be
  * visible. Runtime permission, the app-level notification switch and the
- * capture-results channel are independent, so all three are checked.
+ * results channel are independent, so all three are checked.
  */
 object NotificationAvailability {
     data class Status(
@@ -40,7 +40,7 @@ object NotificationAvailability {
 
     private fun isChannelEnabled(context: Context): Boolean {
         val manager = context.getSystemService(NotificationManager::class.java) ?: return true
-        val channel = manager.getNotificationChannel(FeedbackNotifier.CHANNEL_ID) ?: return true
+        val channel = manager.getNotificationChannel(Channels.RESULTS) ?: return true
         return channel.importance != NotificationManager.IMPORTANCE_NONE
     }
 }

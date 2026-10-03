@@ -16,4 +16,13 @@
     <string name="message_pending_confirmation">请先在设置中处理待确认的提交</string>
     <string name="message_capacity_reached">任务列表已满，请先清理后再提交</string>
     <string name="message_image_too_large">截图超过 3 MiB 限制</string>
+    <string name="channel_progress_name">记账进度</string>
+    <string name="channel_progress_description">正在上传和识别账单时显示，不会发出声音</string>
+    <string name="channel_results_name">记账结果</string>
+    <string name="channel_results_description">账单识别完成后提醒你，并显示金额</string>
+    <string name="channel_alerts_name">需要处理</string>
+    <string name="channel_alerts_description">截图没能记账、需要你操作时提醒</string>
+    <string name="notification_action_view">在 Cashier 查看</string>
+    <string name="notification_action_retry">重试</string>
+    <string name="notification_action_fix">去修复</string>
 </resources>

@@ -1,4 +1,4 @@
-package pro.xiangyu.cashierhelper.feedback
+package pro.xiangyu.cashierhelper.notify
 
 import android.Manifest
 import android.app.Application
@@ -28,7 +28,7 @@ class NotificationAvailabilityTest {
 
     @Before
     fun setUp() {
-        FeedbackNotifier.createNotificationChannel(application)
+        Channels.ensure(application)
         shadowOf(manager).setNotificationsEnabled(true)
         shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
     }
@@ -70,7 +70,7 @@ class NotificationAvailabilityTest {
     fun `a disabled channel is detected on its own`() {
         manager.createNotificationChannel(
             NotificationChannel(
-                FeedbackNotifier.CHANNEL_ID,
+                Channels.RESULTS,
                 "capture results",
                 NotificationManager.IMPORTANCE_NONE,
             ),

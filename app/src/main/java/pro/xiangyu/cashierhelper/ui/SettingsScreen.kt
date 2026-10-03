@@ -53,7 +53,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
-import pro.xiangyu.cashierhelper.feedback.NotificationAvailability
+import pro.xiangyu.cashierhelper.notify.NotificationAvailability
 import pro.xiangyu.cashierhelper.tasks.PendingTask
 import pro.xiangyu.cashierhelper.ui.theme.Success
 import pro.xiangyu.cashierhelper.ui.theme.Warning

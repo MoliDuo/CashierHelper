@@ -18,7 +18,7 @@ import pro.xiangyu.cashierhelper.capture.AccessibilityStatus
 import pro.xiangyu.cashierhelper.capture.CashierAccessibilityService
 import pro.xiangyu.cashierhelper.config.SecureConfigStore
 import pro.xiangyu.cashierhelper.feedback.FeedbackNotifier
-import pro.xiangyu.cashierhelper.feedback.NotificationAvailability
+import pro.xiangyu.cashierhelper.notify.NotificationAvailability
 import pro.xiangyu.cashierhelper.tasks.PendingTask
 import pro.xiangyu.cashierhelper.ui.theme.CashierHelperTheme
 
