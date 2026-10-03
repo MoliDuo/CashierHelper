@@ -85,4 +85,37 @@
     <string name="battery_unrestricted">不受限制</string>
     <string name="battery_restricted">受限制</string>
     <string name="settings_version">版本 %1$s</string>
+
+    <!-- Setup guide -->
+    <string name="action_next">下一步</string>
+    <string name="action_skip">跳过</string>
+    <string name="action_finish">完成</string>
+    <string name="action_allow_notifications">允许通知</string>
+    <string name="action_set_unrestricted">设为不受限制</string>
+    <string name="action_open_app_info">打开应用信息</string>
+    <string name="action_rerun_onboarding">重新运行设置引导</string>
+    <string name="onboarding_start">开始设置</string>
+    <string name="onboarding_skip_all">跳过设置</string>
+    <string name="onboarding_step_of">第 %1$d 步，共 %2$d 步</string>
+    <string name="onboarding_welcome_title">欢迎使用 Cashier 记账助手</string>
+    <string name="onboarding_welcome_body">双击手机侧键，就能把当前屏幕截图上传到你的 Cashier，自动识别并记一笔账。\n\n接下来要做 5 件事，大约 2 分钟。</string>
+    <string name="onboarding_connect_title">连接 Cashier</string>
+    <string name="onboarding_service_title">开启截图服务</string>
+    <string name="onboarding_service_body">在「辅助功能」里打开「Cashier 记账截图服务」。它只在你双击侧键时截一张图，不会读取屏幕上的文字。</string>
+    <string name="onboarding_service_done">截图服务已在运行</string>
+    <string name="onboarding_service_tip">系统大约一天后会弹出一次提醒，说这个应用可以查看你的屏幕，请选「保留」。</string>
+    <string name="onboarding_restricted_title">开关是灰色的，或者提示「受限制的设置」？</string>
+    <string name="onboarding_restricted_body">这是安卓对手动安装的应用的保护。打开应用信息，点右上角的 ⋮，选「允许受限制的设置」，再回来开启服务。</string>
+    <string name="onboarding_notifications_title">允许通知</string>
+    <string name="onboarding_notifications_body">账单识别完成后，会用通知告诉你金额。</string>
+    <string name="onboarding_notifications_done">通知已开启</string>
+    <string name="onboarding_notifications_tip">三星手机可以在「设置 → 通知 → 通知弹出样式」里选「详细」，这样横幅上能直接看到金额。</string>
+    <string name="onboarding_battery_title">不限制后台运行</string>
+    <string name="onboarding_battery_body">把电池设为「不受限制」，没有网络时截的图才能在恢复后稳定地自动上传。</string>
+    <string name="onboarding_battery_done">电池已设为不受限制</string>
+    <string name="onboarding_sidekey_title">设置侧键</string>
+    <string name="onboarding_sidekey_body">在手机的「设置 → 高级功能 → 侧键」里，把「双击」设为「打开应用」，再选择「Cashier 记账」。</string>
+    <string name="onboarding_sidekey_try">设置好后，现在双击一次侧键试试。</string>
+    <string name="onboarding_sidekey_waiting">正在等你双击侧键…</string>
+    <string name="onboarding_sidekey_done">试用成功，侧键可以用了。这次的截图没有上传。</string>
 </resources>

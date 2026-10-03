@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import pro.xiangyu.cashierhelper.CashierHelperApplication
@@ -22,8 +24,11 @@ import pro.xiangyu.cashierhelper.tasks.TaskRecord
 import pro.xiangyu.cashierhelper.tasks.TaskState
 import pro.xiangyu.cashierhelper.ui.home.HomeStatus
 import pro.xiangyu.cashierhelper.ui.home.HomeStatusCalculator
+import pro.xiangyu.cashierhelper.ui.onboarding.OnboardingFlow
+import pro.xiangyu.cashierhelper.ui.onboarding.Signals
+import pro.xiangyu.cashierhelper.ui.onboarding.Step
 
-enum class Screen { HOME, SETTINGS }
+enum class Screen { ONBOARDING, HOME, SETTINGS }
 
 /** Result of pressing "测试并保存". */
 sealed interface SaveState {
@@ -45,7 +50,18 @@ data class MainUiState(
     val launchReason: LaunchReason? = null,
     val screen: Screen = Screen.HOME,
     val save: SaveState = SaveState.Idle,
+    val onboardingStep: Step = Step.WELCOME,
+    val sideKeyWorked: Boolean = false,
 ) {
+    val signals: Signals
+        get() = Signals(
+            connected = config is ConfigState.Ready,
+            serviceRunning = service == ServiceState.RUNNING,
+            notificationsVisible = notifications.isVisible,
+            batteryUnrestricted = batteryUnrestricted,
+            sideKeyWorked = sideKeyWorked,
+        )
+
     val status: HomeStatus
         get() = HomeStatusCalculator.compute(
             config = config,
@@ -62,13 +78,15 @@ data class MainUiState(
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val graph = (application as CashierHelperApplication).graph
-    private val mutableState = MutableStateFlow(MainUiState())
+    private val mutableState = MutableStateFlow(
+        MainUiState(screen = if (graph.prefs.onboardingDone) Screen.HOME else Screen.ONBOARDING),
+    )
     val state: StateFlow<MainUiState> = mutableState.asStateFlow()
 
     init {
         viewModelScope.launch {
             graph.config.current()
-            graph.config.state.collect { config -> mutableState.update { it.copy(config = config) } }
+            graph.config.state.collect { config -> update { it.copy(config = config) } }
         }
         viewModelScope.launch {
             graph.tasks.tasks.collect { all ->
@@ -80,7 +98,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             CashierAccessibilityService.running.collect { refreshSystem() }
         }
+        viewModelScope.launch {
+            graph.trial.succeeded.collect { worked -> update { it.copy(sideKeyWorked = worked) } }
+        }
+        viewModelScope.launch {
+            // The test capture is only wanted while the guide is waiting for the side key.
+            state.map { it.screen == Screen.ONBOARDING && it.onboardingStep == Step.SIDE_KEY }
+                .distinctUntilChanged()
+                .collect { waiting -> if (waiting) graph.trial.arm() else graph.trial.disarm() }
+        }
         refreshSystem()
+    }
+
+    /** Every change goes through here so the guide moves on by itself when a step turns out to be done. */
+    private fun update(change: (MainUiState) -> MainUiState) {
+        mutableState.update { current ->
+            val next = change(current)
+            next.copy(onboardingStep = OnboardingFlow.settle(next.onboardingStep, next.signals))
+        }
     }
 
     val imageFiles get() = graph.images
@@ -89,7 +124,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshSystem() {
         val context = getApplication<Application>()
         val power = context.getSystemService(PowerManager::class.java)
-        mutableState.update {
+        update {
             it.copy(
                 service = ServiceState.read(context),
                 notifications = NotificationAvailability.check(context),
@@ -98,13 +133,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun showLaunchReason(reason: LaunchReason?) = mutableState.update { it.copy(launchReason = reason) }
+    fun showLaunchReason(reason: LaunchReason?) = update { it.copy(launchReason = reason) }
+
+    /** The trigger opened the app; the guide keeps its place, everything else goes to the home screen. */
+    fun showHomeUnlessOnboarding() = update {
+        if (it.screen == Screen.ONBOARDING) it else it.copy(screen = Screen.HOME)
+    }
 
     fun dismissLaunchReason() = showLaunchReason(null)
 
-    fun openSettings() = mutableState.update { it.copy(screen = Screen.SETTINGS, save = SaveState.Idle) }
+    fun openSettings() = update { it.copy(screen = Screen.SETTINGS, save = SaveState.Idle) }
 
-    fun openHome() = mutableState.update { it.copy(screen = Screen.HOME, save = SaveState.Idle) }
+    fun openHome() = update { it.copy(screen = Screen.HOME, save = SaveState.Idle) }
+
+    fun startOnboarding() = update { it.copy(onboardingStep = Step.CONNECT) }
+
+    fun onboardingNext() = update { state ->
+        val next = OnboardingFlow.next(state.onboardingStep)
+        if (next == null) state else state.copy(onboardingStep = next)
+    }
+
+    fun finishOnboarding() {
+        graph.prefs.onboardingDone = true
+        update { it.copy(screen = Screen.HOME, save = SaveState.Idle) }
+    }
+
+    fun rerunOnboarding() {
+        graph.prefs.onboardingDone = false
+        update { it.copy(screen = Screen.ONBOARDING, onboardingStep = Step.WELCOME, save = SaveState.Idle) }
+    }
 
     fun retry(id: String) {
         viewModelScope.launch { graph.intake.retry(id) }
@@ -122,28 +179,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val key = ApiKeyValidator.normalize(apiKey).getOrElse {
             return fail(it.message ?: "API 密钥格式无效")
         }
-        mutableState.update { it.copy(save = SaveState.Testing) }
+        update { it.copy(save = SaveState.Testing) }
         viewModelScope.launch {
             if (!force) {
                 val result = graph.api.testConnection(url, key)
                 if (result != ConnectionTest.OK) {
-                    mutableState.update { it.copy(save = failure(result)) }
+                    update { it.copy(save = failure(result)) }
                     return@launch
                 }
             }
             graph.config.save(url, key).fold(
                 onSuccess = {
                     graph.intake.connectionFixed()
-                    mutableState.update { it.copy(save = SaveState.Saved) }
+                    update { it.copy(save = SaveState.Saved) }
                 },
                 onFailure = { error -> fail(error.message ?: "无法保存设置") },
             )
         }
     }
 
-    fun clearSaveResult() = mutableState.update { it.copy(save = SaveState.Idle) }
+    fun clearSaveResult() = update { it.copy(save = SaveState.Idle) }
 
-    private fun fail(message: String) = mutableState.update { it.copy(save = SaveState.Failed(message)) }
+    private fun fail(message: String) = update { it.copy(save = SaveState.Failed(message)) }
 
     private fun failure(result: ConnectionTest): SaveState.Failed = when (result) {
         ConnectionTest.OK -> SaveState.Failed("")

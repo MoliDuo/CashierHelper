@@ -52,19 +52,8 @@ fun SettingsScreen(
     onFixNotifications: () -> Unit,
     onFixBattery: () -> Unit,
     onOpenCashier: (baseUrl: String) -> Unit,
+    onRerunOnboarding: () -> Unit,
 ) {
-    val saved = when (val config = state.config) {
-        is ConfigState.Ready -> config.config.baseUrl to config.config.apiKey
-        is ConfigState.KeyUnreadable -> config.baseUrl to ""
-        is ConfigState.Missing -> config.baseUrl to ""
-        null -> "" to ""
-    }
-    var baseUrl by rememberSaveable(saved.first) { mutableStateOf(saved.first) }
-    var apiKey by rememberSaveable(saved.second) { mutableStateOf(saved.second) }
-    var showKey by rememberSaveable { mutableStateOf(false) }
-    val clipboard = LocalClipboardManager.current
-    val testing = state.save is SaveState.Testing
-
     Column(
         Modifier
             .fillMaxWidth()
@@ -86,59 +75,13 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            if (state.config is ConfigState.KeyUnreadable) {
-                Text(
-                    stringResource(R.string.settings_key_unreadable),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
-            OutlinedTextField(
-                value = baseUrl,
-                onValueChange = { baseUrl = it; onEdited() },
-                label = { Text(stringResource(R.string.settings_server_address)) },
-                placeholder = { Text(stringResource(R.string.settings_server_placeholder)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                modifier = Modifier.fillMaxWidth(),
+            ConnectionForm(
+                config = state.config,
+                save = state.save,
+                onTestAndSave = onTestAndSave,
+                onEdited = onEdited,
+                onOpenCashier = onOpenCashier,
             )
-            OutlinedTextField(
-                value = apiKey,
-                onValueChange = { apiKey = it; onEdited() },
-                label = { Text(stringResource(R.string.settings_api_key)) },
-                singleLine = true,
-                visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { showKey = !showKey }) {
-                    Text(stringResource(if (showKey) R.string.action_hide else R.string.action_show))
-                }
-                TextButton(onClick = {
-                    clipboard.getText()?.text?.trim()?.let { apiKey = it; onEdited() }
-                }) { Text(stringResource(R.string.action_paste)) }
-                TextButton(
-                    onClick = { onOpenCashier(baseUrl) },
-                    enabled = baseUrl.isNotBlank(),
-                ) { Text(stringResource(R.string.action_open_cashier)) }
-            }
-            SaveResult(state.save)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = { onTestAndSave(baseUrl, apiKey, false) }, enabled = !testing) {
-                    if (testing) {
-                        CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                    } else {
-                        Text(stringResource(R.string.action_test_and_save))
-                    }
-                }
-                val failed = state.save as? SaveState.Failed
-                if (failed?.canForce == true) {
-                    OutlinedButton(onClick = { onTestAndSave(baseUrl, apiKey, true) }) {
-                        Text(stringResource(R.string.action_save_anyway))
-                    }
-                }
-            }
         }
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
@@ -174,29 +117,13 @@ fun SettingsScreen(
 
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
+        TextButton(onClick = onRerunOnboarding) { Text(stringResource(R.string.action_rerun_onboarding)) }
+
         Text(
             stringResource(R.string.settings_version, versionName),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-    }
-}
-
-@Composable
-private fun SaveResult(save: SaveState) {
-    when (save) {
-        is SaveState.Failed -> Text(save.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-        SaveState.Saved -> Text(
-            stringResource(R.string.settings_saved),
-            color = MaterialTheme.statusColors.success,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        SaveState.Testing -> Text(
-            stringResource(R.string.settings_testing),
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        SaveState.Idle -> Unit
     }
 }
 

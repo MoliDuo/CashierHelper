@@ -16,11 +16,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import pro.xiangyu.cashierhelper.BuildConfig
 import pro.xiangyu.cashierhelper.ui.home.HomeScreen
+import pro.xiangyu.cashierhelper.ui.onboarding.OnboardingActions
+import pro.xiangyu.cashierhelper.ui.onboarding.OnboardingScreen
+import pro.xiangyu.cashierhelper.ui.onboarding.RestrictedSettings
 import pro.xiangyu.cashierhelper.ui.settings.SettingsScreen
 import pro.xiangyu.cashierhelper.ui.theme.CashierTheme
 
@@ -45,6 +49,7 @@ class MainActivity : ComponentActivity() {
                 val state by viewModel.state.collectAsStateWithLifecycle()
                 val context = LocalContext.current
                 BackHandler(enabled = state.screen == Screen.SETTINGS) { viewModel.openHome() }
+                val explainRestricted = remember { RestrictedSettings.shouldExplain(installer(), Build.VERSION.SDK_INT) }
                 Box(
                     Modifier
                         .fillMaxSize()
@@ -52,6 +57,23 @@ class MainActivity : ComponentActivity() {
                         .safeDrawingPadding(),
                 ) {
                     when (state.screen) {
+                        Screen.ONBOARDING -> OnboardingScreen(
+                            state = state,
+                            explainRestricted = explainRestricted,
+                            actions = OnboardingActions(
+                                onStart = viewModel::startOnboarding,
+                                onNext = viewModel::onboardingNext,
+                                onSkipAll = viewModel::finishOnboarding,
+                                onFinish = viewModel::finishOnboarding,
+                                onTestAndSave = viewModel::testAndSave,
+                                onEdited = viewModel::clearSaveResult,
+                                onOpenCashier = { baseUrl -> SystemIntents.openUrl(context, normalizedUrl(baseUrl)) },
+                                onOpenAccessibility = { SystemIntents.openAccessibility(context) },
+                                onOpenAppInfo = { SystemIntents.openAppDetails(context) },
+                                onAllowNotifications = { requestOrOpenNotifications() },
+                                onOpenBattery = { SystemIntents.openBattery(context) },
+                            ),
+                        )
                         Screen.HOME -> HomeScreen(
                             state = state,
                             imageFiles = viewModel.imageFiles,
@@ -72,7 +94,8 @@ class MainActivity : ComponentActivity() {
                             onFixService = { SystemIntents.openAccessibility(context) },
                             onFixNotifications = { requestOrOpenNotifications() },
                             onFixBattery = { SystemIntents.openBattery(context) },
-                            onOpenCashier = { baseUrl -> SystemIntents.openUrl(context, baseUrl) },
+                            onOpenCashier = { baseUrl -> SystemIntents.openUrl(context, normalizedUrl(baseUrl)) },
+                            onRerunOnboarding = viewModel::rerunOnboarding,
                         )
                     }
                 }
@@ -97,7 +120,7 @@ class MainActivity : ComponentActivity() {
         }
         if (reason != null) {
             viewModel.showLaunchReason(reason)
-            viewModel.openHome()
+            viewModel.showHomeUnlessOnboarding()
             // The reason is shown once; a rotation must not bring it back.
             intent?.removeExtra(EXTRA_LAUNCH_REASON)
         }
@@ -111,6 +134,19 @@ class MainActivity : ComponentActivity() {
             SystemIntents.openNotifications(this)
         }
     }
+
+    @Suppress("DEPRECATION")
+    private fun installer(): String? = runCatching {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            packageManager.getInstallSourceInfo(packageName).installingPackageName
+        } else {
+            packageManager.getInstallerPackageName(packageName)
+        }
+    }.getOrNull()
+
+    /** The address as typed may lack the scheme; Cashier is always https. */
+    private fun normalizedUrl(typed: String): String =
+        typed.trim().let { if ("://" in it) it else "https://$it" }
 
     companion object {
         const val EXTRA_LAUNCH_REASON = "launchReason"
