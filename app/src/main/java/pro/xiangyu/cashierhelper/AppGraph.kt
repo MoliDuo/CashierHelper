@@ -15,6 +15,7 @@ import pro.xiangyu.cashierhelper.config.AppPrefs
 import pro.xiangyu.cashierhelper.config.ConfigRepository
 import pro.xiangyu.cashierhelper.images.ImageEncoder
 import pro.xiangyu.cashierhelper.images.ImageFiles
+import pro.xiangyu.cashierhelper.images.SharedImageReader
 import pro.xiangyu.cashierhelper.notify.Notifier
 import pro.xiangyu.cashierhelper.tasks.TaskBookStore
 import pro.xiangyu.cashierhelper.tasks.TaskEngine
@@ -33,6 +34,7 @@ class AppGraph(private val application: Application) {
     val haptics by lazy { Haptics(application) }
     val trial by lazy { TriggerTrial() }
     val encoder by lazy { ImageEncoder() }
+    val imageReader by lazy { SharedImageReader(application.contentResolver, encoder) }
 
     val images by lazy { ImageFiles(File(application.noBackupFilesDir, "task-images")) }
     val tasks by lazy {

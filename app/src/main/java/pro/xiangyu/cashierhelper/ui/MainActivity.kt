@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
@@ -25,7 +26,9 @@ import pro.xiangyu.cashierhelper.ui.home.HomeScreen
 import pro.xiangyu.cashierhelper.ui.onboarding.OnboardingActions
 import pro.xiangyu.cashierhelper.ui.onboarding.OnboardingScreen
 import pro.xiangyu.cashierhelper.ui.onboarding.RestrictedSettings
+import pro.xiangyu.cashierhelper.tasks.SharedImageSubmitter
 import pro.xiangyu.cashierhelper.ui.settings.SettingsScreen
+import pro.xiangyu.cashierhelper.ui.share.GroupChoiceDialog
 import pro.xiangyu.cashierhelper.ui.theme.CashierTheme
 
 /**
@@ -38,6 +41,10 @@ class MainActivity : ComponentActivity() {
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {
         viewModel.refreshSystem()
     }
+
+    private val photoPicker = registerForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(SharedImageSubmitter.MAX_SELECTION),
+    ) { uris -> viewModel.photosPicked(uris) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -56,6 +63,15 @@ class MainActivity : ComponentActivity() {
                         .background(MaterialTheme.colorScheme.background)
                         .safeDrawingPadding(),
                 ) {
+                    if (state.pickedUris.isNotEmpty()) {
+                        val picked = state.pickedUris
+                        GroupChoiceDialog(
+                            count = picked.size,
+                            onTogether = { viewModel.submitPicked(picked, together = true) },
+                            onSeparate = { viewModel.submitPicked(picked, together = false) },
+                            onCancel = viewModel::cancelPick,
+                        )
+                    }
                     when (state.screen) {
                         Screen.ONBOARDING -> OnboardingScreen(
                             state = state,
@@ -78,6 +94,9 @@ class MainActivity : ComponentActivity() {
                             state = state,
                             imageFiles = viewModel.imageFiles,
                             onOpenSettings = viewModel::openSettings,
+                            onPickPhotos = {
+                                photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                            },
                             onFixService = { SystemIntents.openAccessibility(context) },
                             onFixNotifications = { requestOrOpenNotifications() },
                             onFixBattery = { SystemIntents.openBattery(context) },

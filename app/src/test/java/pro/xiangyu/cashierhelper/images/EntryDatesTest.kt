@@ -29,3 +29,26 @@ class EntryDatesTest {
         assertEquals("2026-10-04", EntryDates.forShared(Instant.parse("2020-01-01T00:00:00Z").toEpochMilli(), now, shanghai))
     }
 }
+
+class ExifTimestampTest {
+    private val zone = java.time.ZoneId.of("Asia/Shanghai")
+
+    @org.junit.Test
+    fun `an exif time is read as local wall clock time`() {
+        val millis = EntryDates.parseExifTimestamp("2025:10:08 23:30:00", zone)
+
+        org.junit.Assert.assertEquals(
+            "2025-10-08",
+            EntryDates.forShared(millis, java.time.Instant.parse("2025-10-09T04:00:00Z"), zone),
+        )
+        org.junit.Assert.assertEquals(java.time.Instant.parse("2025-10-08T15:30:00Z").toEpochMilli(), millis)
+    }
+
+    @org.junit.Test
+    fun `garbage or missing exif values give nothing`() {
+        org.junit.Assert.assertNull(EntryDates.parseExifTimestamp(null, zone))
+        org.junit.Assert.assertNull(EntryDates.parseExifTimestamp("", zone))
+        org.junit.Assert.assertNull(EntryDates.parseExifTimestamp("0000:00:00 00:00:00", zone))
+        org.junit.Assert.assertNull(EntryDates.parseExifTimestamp("yesterday", zone))
+    }
+}

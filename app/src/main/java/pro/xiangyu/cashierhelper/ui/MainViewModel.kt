@@ -1,6 +1,7 @@
 package pro.xiangyu.cashierhelper.ui
 
 import android.app.Application
+import android.net.Uri
 import android.os.PowerManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -19,7 +20,11 @@ import pro.xiangyu.cashierhelper.config.ApiKeyValidator
 import pro.xiangyu.cashierhelper.config.BaseUrlValidator
 import pro.xiangyu.cashierhelper.config.ConfigState
 import pro.xiangyu.cashierhelper.notify.NotificationAvailability
+import android.widget.Toast
+import pro.xiangyu.cashierhelper.R
+import pro.xiangyu.cashierhelper.tasks.SharedImageSubmitter
 import pro.xiangyu.cashierhelper.tasks.TaskProblem
+import pro.xiangyu.cashierhelper.tasks.TaskSource
 import pro.xiangyu.cashierhelper.tasks.TaskRecord
 import pro.xiangyu.cashierhelper.tasks.TaskState
 import pro.xiangyu.cashierhelper.ui.home.HomeStatus
@@ -52,6 +57,8 @@ data class MainUiState(
     val save: SaveState = SaveState.Idle,
     val onboardingStep: Step = Step.WELCOME,
     val sideKeyWorked: Boolean = false,
+    /** Images chosen in the gallery that wait for the "same bill or separate" answer. */
+    val pickedUris: List<Uri> = emptyList(),
 ) {
     val signals: Signals
         get() = Signals(
@@ -161,6 +168,33 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun rerunOnboarding() {
         graph.prefs.onboardingDone = false
         update { it.copy(screen = Screen.ONBOARDING, onboardingStep = Step.WELCOME, save = SaveState.Idle) }
+    }
+
+    /** Gallery pick: a single image or a count the grouping question does not fit goes straight through. */
+    fun photosPicked(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        if (SharedImageSubmitter.asksHowToGroup(uris.size)) {
+            update { it.copy(pickedUris = uris) }
+        } else {
+            submitPicked(uris, together = false)
+        }
+    }
+
+    fun cancelPick() = update { it.copy(pickedUris = emptyList()) }
+
+    fun submitPicked(uris: List<Uri>, together: Boolean) {
+        update { it.copy(pickedUris = emptyList()) }
+        val context = getApplication<Application>()
+        viewModelScope.launch {
+            val result = SharedImageSubmitter(graph.imageReader, graph.intake)
+                .submit(TaskSource.PICKER, uris, together)
+            val message = when {
+                result.started == 0 -> context.getString(R.string.share_unreadable)
+                result.unreadable > 0 -> context.getString(R.string.share_started_partial, result.unreadable)
+                else -> context.getString(R.string.share_started)
+            }
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }
     }
 
     fun retry(id: String) {

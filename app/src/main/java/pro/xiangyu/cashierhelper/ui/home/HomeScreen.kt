@@ -55,6 +55,7 @@ fun HomeScreen(
     state: MainUiState,
     imageFiles: ImageFiles,
     onOpenSettings: () -> Unit,
+    onPickPhotos: () -> Unit,
     onFixService: () -> Unit,
     onFixNotifications: () -> Unit,
     onFixBattery: () -> Unit,
@@ -106,6 +107,11 @@ fun HomeScreen(
                         }
                     }
                 }
+            }
+        }
+        item {
+            OutlinedButton(onClick = onPickPhotos, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.action_pick_photos))
             }
         }
         if (state.needsAction.isNotEmpty()) {

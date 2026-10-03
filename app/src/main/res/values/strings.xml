@@ -118,4 +118,18 @@
     <string name="onboarding_sidekey_try">设置好后，现在双击一次侧键试试。</string>
     <string name="onboarding_sidekey_waiting">正在等你双击侧键…</string>
     <string name="onboarding_sidekey_done">试用成功，侧键可以用了。这次的截图没有上传。</string>
+
+    <!-- Share and picker -->
+    <string name="share_target_label">Cashier 记账</string>
+    <string name="share_started">已开始记账，结果会通过通知告诉你</string>
+    <string name="share_started_partial">已开始记账，有 %1$d 张图片无法读取</string>
+    <string name="share_unreadable">这些图片无法读取，没有开始记账</string>
+    <plurals name="share_group_title">
+        <item quantity="other">选了 %1$d 张图片</item>
+    </plurals>
+    <string name="share_group_body">它们是同一张账单的几个部分，还是各自独立的账单？</string>
+    <string name="share_group_together">同一张账单</string>
+    <string name="share_group_separate">分别记账</string>
+    <string name="action_pick_photos">从相册选图记账</string>
+    <string name="action_cancel">取消</string>
 </resources>
