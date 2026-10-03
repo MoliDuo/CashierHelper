@@ -7,13 +7,15 @@ plugins {
 
 // 默认版本与仓库当前发布保持一致；.github/workflows/release.yml 用 -P 参数覆盖它们。
 val releaseVersionName = providers.gradleProperty("releaseVersionName").orNull ?: "1.0.1"
-val releaseVersionCode = providers.gradleProperty("releaseVersionCode").orNull?.let {
-    it.toIntOrNull() ?: throw GradleException("releaseVersionCode 必须是整数，收到：$it")
-} ?: 2
 
 if (!releaseVersionName.matches(Regex("""\d+\.\d+\.\d+"""))) {
     throw GradleException("releaseVersionName 必须是形如 1.0.2 的三段版本号，收到：$releaseVersionName")
 }
+
+// 规范 006 的 6.2.3：versionCode = X*1000000 + Y*1000 + Z。scripts/release.py 用同一个公式。
+val releaseVersionCode = providers.gradleProperty("releaseVersionCode").orNull?.let {
+    it.toIntOrNull() ?: throw GradleException("releaseVersionCode 必须是整数，收到：$it")
+} ?: releaseVersionName.split(".").map { it.toInt() }.let { (x, y, z) -> x * 1_000_000 + y * 1_000 + z }
 
 // Release 签名材料只从环境变量读取，仓库不保存私钥或密码。
 val signingRequired = providers.environmentVariable("CASHIERHELPER_REQUIRE_SIGNING").orNull == "true"

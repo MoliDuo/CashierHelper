@@ -5,6 +5,7 @@ import android.net.Uri
 import android.os.PowerManager
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import pro.xiangyu.cashierhelper.CashierHelperApplication
 import pro.xiangyu.cashierhelper.api.ConnectionTest
 import pro.xiangyu.cashierhelper.capture.CashierAccessibilityService
@@ -28,6 +30,9 @@ import pro.xiangyu.cashierhelper.tasks.TaskSource
 import pro.xiangyu.cashierhelper.tasks.TaskRecord
 import pro.xiangyu.cashierhelper.tasks.TaskState
 import pro.xiangyu.cashierhelper.ui.home.HomeStatus
+import pro.xiangyu.cashierhelper.update.InstallStart
+import pro.xiangyu.cashierhelper.update.UpdateFeed
+import pro.xiangyu.cashierhelper.update.UpdateStatus
 import pro.xiangyu.cashierhelper.ui.home.HomeStatusCalculator
 import pro.xiangyu.cashierhelper.ui.onboarding.OnboardingFlow
 import pro.xiangyu.cashierhelper.ui.onboarding.Signals
@@ -59,7 +64,14 @@ data class MainUiState(
     val sideKeyWorked: Boolean = false,
     /** Images chosen in the gallery that wait for the "same bill or separate" answer. */
     val pickedUris: List<Uri> = emptyList(),
+    val update: UpdateStatus = UpdateStatus.Idle,
+    val updateDeferredCode: Int = 0,
+    val updatesEnabled: Boolean = false,
 ) {
+    /** A downloaded update to offer on the home screen; hidden after "稍后" until a newer one appears. */
+    val offeredUpdate: UpdateFeed?
+        get() = (update as? UpdateStatus.Ready)?.feed?.takeIf { it.versionCode != updateDeferredCode }
+
     val signals: Signals
         get() = Signals(
             connected = config is ConfigState.Ready,
@@ -113,6 +125,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             state.map { it.screen == Screen.ONBOARDING && it.onboardingStep == Step.SIDE_KEY }
                 .distinctUntilChanged()
                 .collect { waiting -> if (waiting) graph.trial.arm() else graph.trial.disarm() }
+        }
+        viewModelScope.launch {
+            graph.updates.status.collect { status -> update { it.copy(update = status) } }
+        }
+        viewModelScope.launch {
+            graph.updates.deferred.collect { code -> update { it.copy(updateDeferredCode = code) } }
+        }
+        update { it.copy(updatesEnabled = graph.updates.enabled) }
+        viewModelScope.launch {
+            graph.updates.restore()
+            graph.updates.checkOnOpen()
         }
         refreshSystem()
     }
@@ -196,6 +219,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }
     }
+
+    fun checkForUpdates() {
+        viewModelScope.launch { graph.updates.check(manual = true) }
+    }
+
+    fun deferUpdate() = graph.updates.defer()
+
+    suspend fun installUpdate(): InstallStart = withContext(Dispatchers.IO) { graph.updates.install() }
 
     fun retry(id: String) {
         viewModelScope.launch { graph.intake.retry(id) }

@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -21,7 +22,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 import pro.xiangyu.cashierhelper.BuildConfig
+import pro.xiangyu.cashierhelper.R
+import pro.xiangyu.cashierhelper.update.InstallStart
+import pro.xiangyu.cashierhelper.update.UpdateActions
 import pro.xiangyu.cashierhelper.ui.home.HomeScreen
 import pro.xiangyu.cashierhelper.ui.onboarding.OnboardingActions
 import pro.xiangyu.cashierhelper.ui.onboarding.OnboardingScreen
@@ -50,6 +56,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         readLaunchReason(intent)
+        readInstallRequest(intent)
 
         setContent {
             CashierTheme {
@@ -100,6 +107,8 @@ class MainActivity : ComponentActivity() {
                             onFixService = { SystemIntents.openAccessibility(context) },
                             onFixNotifications = { requestOrOpenNotifications() },
                             onFixBattery = { SystemIntents.openBattery(context) },
+                            onInstallUpdate = ::installUpdate,
+                            onDeferUpdate = viewModel::deferUpdate,
                             onDismissReason = viewModel::dismissLaunchReason,
                             onRetry = viewModel::retry,
                             onDelete = viewModel::delete,
@@ -115,6 +124,8 @@ class MainActivity : ComponentActivity() {
                             onFixBattery = { SystemIntents.openBattery(context) },
                             onOpenCashier = { baseUrl -> SystemIntents.openUrl(context, normalizedUrl(baseUrl)) },
                             onRerunOnboarding = viewModel::rerunOnboarding,
+                            onCheckUpdates = viewModel::checkForUpdates,
+                            onInstallUpdate = ::installUpdate,
                         )
                     }
                 }
@@ -126,11 +137,33 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         readLaunchReason(intent)
+        readInstallRequest(intent)
     }
 
     override fun onResume() {
         super.onResume()
         viewModel.refreshSystem()
+    }
+
+    /** The "立即更新" button of the update notification opens the app and asks for the install. */
+    private fun readInstallRequest(intent: Intent?) {
+        if (intent?.getBooleanExtra(UpdateActions.EXTRA_INSTALL, false) != true) return
+        intent.removeExtra(UpdateActions.EXTRA_INSTALL)
+        installUpdate()
+    }
+
+    private fun installUpdate() {
+        lifecycleScope.launch {
+            when (viewModel.installUpdate()) {
+                InstallStart.NEEDS_PERMISSION -> {
+                    Toast.makeText(this@MainActivity, R.string.update_needs_permission, Toast.LENGTH_LONG).show()
+                    SystemIntents.openInstallSources(this@MainActivity)
+                }
+                InstallStart.FAILED ->
+                    Toast.makeText(this@MainActivity, R.string.update_install_failed, Toast.LENGTH_LONG).show()
+                InstallStart.STARTED, InstallStart.NOTHING_READY -> Unit
+            }
+        }
     }
 
     private fun readLaunchReason(intent: Intent?) {

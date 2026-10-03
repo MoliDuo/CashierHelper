@@ -15,6 +15,9 @@ import java.util.concurrent.ConcurrentHashMap
 import pro.xiangyu.cashierhelper.R
 import pro.xiangyu.cashierhelper.tasks.TaskListener
 import pro.xiangyu.cashierhelper.tasks.TaskRecord
+import pro.xiangyu.cashierhelper.update.UpdateActions
+import pro.xiangyu.cashierhelper.update.UpdateFeed
+import pro.xiangyu.cashierhelper.update.UpdateNotifier
 
 /** Intent actions that notification buttons send back to the app. */
 object TaskActions {
@@ -34,7 +37,7 @@ class Notifier(
     private val baseUrl: () -> String?,
     private val appIntent: () -> Intent,
     private val now: () -> Long = System::currentTimeMillis,
-) : TaskListener {
+) : TaskListener, UpdateNotifier {
     private val appContext = context.applicationContext
     private val shown = ConcurrentHashMap<String, NotificationContent>()
 
@@ -83,6 +86,42 @@ class Notifier(
             .setPublicVersion(publicVersion(Channels.ALERTS, "需要处理"))
             .build()
         post(NotificationManagerCompat.from(appContext), NOTICE_ID, notification)
+    }
+
+    /** A downloaded, verified update is waiting; the buttons are the same as in the app. */
+    override fun updateReady(feed: UpdateFeed) {
+        if (!NotificationAvailability.check(appContext).isVisible) return
+        val title = appContext.getString(R.string.update_available_title, feed.versionName)
+        val text = feed.notes?.trim()?.takeIf { it.isNotEmpty() } ?: appContext.getString(R.string.update_ready_body)
+        val install = PendingIntent.getActivity(
+            appContext,
+            UPDATE_REQUEST_BASE,
+            appIntent().addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(UpdateActions.EXTRA_INSTALL, true),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val later = PendingIntent.getBroadcast(
+            appContext,
+            UPDATE_REQUEST_BASE + 1,
+            Intent(UpdateActions.LATER).setPackage(appContext.packageName),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = NotificationCompat.Builder(appContext, Channels.UPDATES)
+            .setSmallIcon(R.drawable.ic_stat_cashier)
+            .setColor(ContextCompat.getColor(appContext, R.color.brand_primary))
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
+            .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION)
+            .setAutoCancel(true)
+            .setContentIntent(install)
+            .addAction(0, appContext.getString(R.string.update_action_install), install)
+            .addAction(0, appContext.getString(R.string.update_action_later), later)
+            .build()
+        post(NotificationManagerCompat.from(appContext), UPDATE_ID, notification)
+    }
+
+    override fun clearUpdate() {
+        NotificationManagerCompat.from(appContext).cancel(UPDATE_ID)
     }
 
     private fun build(record: TaskRecord, content: NotificationContent): android.app.Notification {
@@ -185,6 +224,8 @@ class Notifier(
         fun progressId(seq: Int) = 10_000 + seq
         fun resultId(seq: Int) = 20_000 + seq
         const val NOTICE_ID = 30_001
+        const val UPDATE_ID = 30_002
+        private const val UPDATE_REQUEST_BASE = 300_000
         private const val VIEW_REQUEST_BASE = 100_000
         private const val RETRY_REQUEST_BASE = 200_000
     }

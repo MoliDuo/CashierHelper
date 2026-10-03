@@ -5,6 +5,7 @@ import kotlinx.coroutines.launch
 import pro.xiangyu.cashierhelper.notify.Channels
 import pro.xiangyu.cashierhelper.tasks.TaskEngine
 import pro.xiangyu.cashierhelper.tasks.TaskEngineProvider
+import pro.xiangyu.cashierhelper.update.UpdateWorker
 
 class CashierHelperApplication : Application(), TaskEngineProvider {
     val graph by lazy { AppGraph(this) }
@@ -18,6 +19,7 @@ class CashierHelperApplication : Application(), TaskEngineProvider {
             Migration.run(this@CashierHelperApplication, graph.prefs, graph.config)
             // Anything unfinished from before the app was last stopped goes on from here.
             graph.intake.reconcile()
+            if (graph.updates.enabled) UpdateWorker.schedule(this@CashierHelperApplication)
         }
     }
 }

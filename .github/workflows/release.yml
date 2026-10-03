@@ -2,9 +2,20 @@ name: Release
 
 # 每次推送到 main 都发布一个 Release。一次推送包含多个提交时，只有最后一个提交
 # 会进入这里；靠固定并发组串行排队，避免多个运行争抢同一版本号。
+# 只有会改变安装包的改动才发版：只改 README 或文档时用户不该收到无意义的更新提示。
 on:
   push:
     branches: [main]
+    paths:
+      - "app/**"
+      - "gradle/**"
+      - "build.gradle.kts"
+      - "settings.gradle.kts"
+      - "gradle.properties"
+      - "gradlew"
+      - "gradlew.bat"
+      - "scripts/**"
+      - ".github/workflows/release.yml"
 
 permissions:
   contents: read
@@ -114,9 +125,12 @@ jobs:
         env:
           VERSION_NAME: ${{ steps.version.outputs.version_name }}
           VERSION_CODE: ${{ steps.version.outputs.version_code }}
+          # 提交说明就是应用里显示的更新说明；放在环境变量里，不拼进脚本。
+          RELEASE_NOTES: ${{ github.event.head_commit.message }}
         run: |
           set -euo pipefail
           python3 scripts/release.py stage-assets \
+            --notes "$RELEASE_NOTES" \
             --apk app/build/outputs/apk/release/app-release.apk \
             --mapping app/build/outputs/mapping/release/mapping.txt \
             --out-dir release-assets \
@@ -128,6 +142,7 @@ jobs:
             --run-url "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       - name: Upload the assets and publish the release
+        id: publish
         if: steps.version.outputs.skip != 'true'
         env:
           RELEASE_ID: ${{ steps.version.outputs.release_id }}
@@ -137,6 +152,21 @@ jobs:
             --release-id "$RELEASE_ID" \
             --dir release-assets \
             --sha "$GITHUB_SHA"
+
+      # 应用内更新读的是 latest 下的 feed。发布后按客户端的方式下载一遍，
+      # 核对版本、下载地址和 SHA256；对不上就把 Release 改回草稿（规范 006 的 6.5.5、6.8）。
+      - name: Verify the published update feed
+        if: steps.version.outputs.skip != 'true' && steps.publish.outputs.latest == 'true'
+        env:
+          RELEASE_ID: ${{ steps.version.outputs.release_id }}
+          VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          VERSION_CODE: ${{ steps.version.outputs.version_code }}
+        run: |
+          set -euo pipefail
+          python3 scripts/release.py verify-feed \
+            --release-id "$RELEASE_ID" \
+            --version-name "$VERSION_NAME" \
+            --version-code "$VERSION_CODE"
 
       - name: Delete the signing keystore
         if: always()

@@ -39,6 +39,7 @@ import pro.xiangyu.cashierhelper.capture.ServiceState
 import pro.xiangyu.cashierhelper.config.ConfigState
 import pro.xiangyu.cashierhelper.ui.MainUiState
 import pro.xiangyu.cashierhelper.ui.SaveState
+import pro.xiangyu.cashierhelper.update.UpdateStatus
 import pro.xiangyu.cashierhelper.ui.theme.statusColors
 
 @Composable
@@ -53,6 +54,8 @@ fun SettingsScreen(
     onFixBattery: () -> Unit,
     onOpenCashier: (baseUrl: String) -> Unit,
     onRerunOnboarding: () -> Unit,
+    onCheckUpdates: () -> Unit,
+    onInstallUpdate: () -> Unit,
 ) {
     Column(
         Modifier
@@ -119,11 +122,43 @@ fun SettingsScreen(
 
         TextButton(onClick = onRerunOnboarding) { Text(stringResource(R.string.action_rerun_onboarding)) }
 
+        if (state.updatesEnabled) {
+            UpdateRow(state.update, onCheckUpdates, onInstallUpdate)
+        }
+
         Text(
             stringResource(R.string.settings_version, versionName),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+}
+
+@Composable
+private fun UpdateRow(status: UpdateStatus, onCheck: () -> Unit, onInstall: () -> Unit) {
+    val busy = status is UpdateStatus.Checking || status is UpdateStatus.Downloading
+    val text = when (status) {
+        UpdateStatus.Checking -> stringResource(R.string.update_checking)
+        UpdateStatus.UpToDate -> stringResource(R.string.update_up_to_date)
+        is UpdateStatus.Downloading -> stringResource(R.string.update_downloading, status.feed.versionName)
+        is UpdateStatus.Ready -> stringResource(R.string.update_ready_status, status.feed.versionName)
+        is UpdateStatus.Failed -> status.message
+        UpdateStatus.Idle -> null
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onCheck, enabled = !busy) { Text(stringResource(R.string.update_check)) }
+            if (status is UpdateStatus.Ready) {
+                Button(onClick = onInstall) { Text(stringResource(R.string.update_action_install)) }
+            }
+        }
+        if (text != null) {
+            Text(
+                text,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (status is UpdateStatus.Failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

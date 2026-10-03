@@ -13,6 +13,7 @@ object Channels {
     const val PROGRESS = "progress"
     const val RESULTS = "results"
     const val ALERTS = "alerts"
+    const val UPDATES = "updates"
 
     /** The first channel this app ever created; replaced by the three above. */
     const val LEGACY_RESULTS = "capture_results"
@@ -52,6 +53,21 @@ object Channels {
                 description = context.getString(R.string.channel_alerts_description)
                 enableVibration(true)
                 vibrationPattern = alertsVibration
+            },
+        )
+        ensureUpdates(context)
+    }
+
+    fun ensureUpdates(context: Context) {
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        manager.createNotificationChannel(
+            NotificationChannel(
+                UPDATES,
+                context.getString(R.string.channel_updates_name),
+                NotificationManager.IMPORTANCE_DEFAULT,
+            ).apply {
+                description = context.getString(R.string.channel_updates_description)
+                setShowBadge(false)
             },
         )
     }

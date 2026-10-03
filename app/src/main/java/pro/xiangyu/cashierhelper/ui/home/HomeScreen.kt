@@ -49,6 +49,7 @@ import pro.xiangyu.cashierhelper.tasks.TaskState
 import pro.xiangyu.cashierhelper.ui.LaunchReason
 import pro.xiangyu.cashierhelper.ui.MainUiState
 import pro.xiangyu.cashierhelper.ui.theme.statusColors
+import pro.xiangyu.cashierhelper.update.UpdateFeed
 
 @Composable
 fun HomeScreen(
@@ -56,6 +57,8 @@ fun HomeScreen(
     imageFiles: ImageFiles,
     onOpenSettings: () -> Unit,
     onPickPhotos: () -> Unit,
+    onInstallUpdate: () -> Unit,
+    onDeferUpdate: () -> Unit,
     onFixService: () -> Unit,
     onFixNotifications: () -> Unit,
     onFixBattery: () -> Unit,
@@ -78,6 +81,9 @@ fun HomeScreen(
                 )
                 TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.action_settings)) }
             }
+        }
+        state.offeredUpdate?.let { feed ->
+            item { UpdateBanner(feed, onInstallUpdate, onDeferUpdate) }
         }
         state.launchReason?.let { reason ->
             item { ReasonBanner(reason, onDismissReason, onFixService, onOpenSettings) }
@@ -124,6 +130,35 @@ fun HomeScreen(
             item { SectionTitle(stringResource(R.string.section_in_progress)) }
             items(state.inProgress, key = { it.id }) { task ->
                 TaskRow(task, imageFiles, onRetry, onDelete, onOpenSettings)
+            }
+        }
+    }
+}
+
+@Composable
+private fun UpdateBanner(feed: UpdateFeed, onInstall: () -> Unit, onLater: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.padding(start = 16.dp, top = 12.dp, end = 8.dp, bottom = 4.dp)) {
+            Text(
+                stringResource(R.string.update_banner_title, feed.versionName),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+            feed.notes?.trim()?.takeIf { it.isNotEmpty() }?.let { notes ->
+                Text(
+                    notes,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    maxLines = 3,
+                )
+            }
+            Row {
+                Button(onClick = onInstall) { Text(stringResource(R.string.update_action_install)) }
+                TextButton(onClick = onLater) { Text(stringResource(R.string.update_action_later)) }
             }
         }
     }
