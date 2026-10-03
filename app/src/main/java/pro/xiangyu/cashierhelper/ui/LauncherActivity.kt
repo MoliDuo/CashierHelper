@@ -56,8 +56,15 @@ class LauncherActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Settings must not stay in this activity's task: the launcher task is
+     * excluded from recents, so a leftover settings page there would be brought
+     * back to the front by the next trigger instead of running a capture.
+     */
     private fun openSettings() {
-        startActivity(Intent(this, SettingsActivity::class.java))
+        startActivity(
+            Intent(this, SettingsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+        )
         finishWithoutAnimation()
     }
 
