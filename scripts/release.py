@@ -26,9 +26,8 @@ import urllib.request
 from pathlib import Path
 from typing import NoReturn
 
-# 仓库里 app/build.gradle.kts 的默认版本是 1.0.1 / 2，它就是自动递增的基线。
+# 仓库里 app/build.gradle.kts 的默认版本是 1.0.1，它就是自动递增的基线。
 BASELINE_VERSION_NAME = "1.0.1"
-BASELINE_VERSION_CODE = 2
 
 VERSION_NAME_PREFIX = "1.0."
 TAG_PREFIX = "v1.0."
@@ -39,6 +38,12 @@ METADATA_MARKER_END = "-->"
 CHECKSUM_FILE = "SHA256SUMS"
 METADATA_FILE = "release-metadata.json"
 MAPPING_FILE = "mapping.txt"
+
+# 应用内更新读取的 feed：规范 007 的 7.3.1 要求它是 latest 下的固定入口，
+# 每个版本的下载地址指向具体版本的资产。
+FEED_FILE = METADATA_FILE
+NOTES_LIMIT = 600
+NOTE_TRAILER_PREFIXES = ("co-authored-by:", "signed-off-by:")
 
 RETRY_STATUS = {429, 500, 502, 503, 504}
 RETRY_BASE_DELAY = 2
@@ -75,6 +80,50 @@ def patch_from_tag(value: object) -> "int | None":
     return int(suffix) if suffix.isdigit() else None
 
 
+def version_code_for(version_name: str) -> int:
+    """规范 006 的 6.2.3：X*1000000 + Y*1000 + Z。"""
+    parts = version_name.split(".")
+    if len(parts) != 3 or not all(part.isdigit() for part in parts):
+        fail(f"版本号必须是 X.Y.Z：{version_name}")
+    major, minor, patch = (int(part) for part in parts)
+    if minor > 999 or patch > 999:
+        fail(f"版本号 {version_name} 的次版本或补丁超过 999，无法换算成 versionCode")
+    return major * 1_000_000 + minor * 1_000 + patch
+
+
+def clean_notes(text: object) -> str:
+    """把提交说明整理成给用户看的更新说明：去掉署名行，限制长度。"""
+    if not isinstance(text, str):
+        return ""
+    lines = [
+        line.rstrip()
+        for line in text.strip().splitlines()
+        if not line.strip().lower().startswith(NOTE_TRAILER_PREFIXES)
+    ]
+    cleaned = "\n".join(lines).strip()
+    if len(cleaned) > NOTES_LIMIT:
+        cleaned = cleaned[: NOTES_LIMIT - 1].rstrip() + "…"
+    return cleaned
+
+
+def feed_errors(feed: object, *, version_name: str, version_code: int, download_prefix: str) -> list:
+    """检查 feed 是否能让客户端安全地更新到这个版本，返回问题列表（空表示没问题）。"""
+    if not isinstance(feed, dict):
+        return ["feed 不是 JSON 对象"]
+    errors = []
+    if feed.get("versionName") != version_name:
+        errors.append(f"feed 的版本是 {feed.get('versionName')}，期望 {version_name}")
+    if feed.get("versionCode") != version_code:
+        errors.append(f"feed 的 versionCode 是 {feed.get('versionCode')}，期望 {version_code}")
+    digest = feed.get("sha256")
+    if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdefABCDEF" for c in digest):
+        errors.append("feed 的 sha256 不是 64 位十六进制")
+    url = feed.get("apkUrl")
+    if not isinstance(url, str) or not url.startswith(download_prefix):
+        errors.append(f"feed 的 apkUrl 没有指向具体版本的资产（应以 {download_prefix} 开头）")
+    return errors
+
+
 def parse_metadata(body: object) -> "dict | None":
     """从 Release 正文中取出元数据 JSON 注释，解析失败返回 None。"""
     if not isinstance(body, str):
@@ -98,13 +147,12 @@ def apk_file_name(version_name: str) -> str:
 
 
 def next_version(releases, tag_patches):
-    """返回下一个 (patch, versionCode)。
+    """返回下一个 (patch, versionCode)，versionCode 由版本号按规范 006 的 6.2.3 换算。
 
     同时读取 Release（含草稿）元数据里的版本记录和已有的 v1.0.* tag，
     保证已经占用过的版本号不会被重复使用。
     """
     patches = {patch_from_version_name(BASELINE_VERSION_NAME) or 1}
-    codes = {BASELINE_VERSION_CODE}
 
     for release in releases:
         metadata = parse_metadata(release.get("body"))
@@ -112,15 +160,13 @@ def next_version(releases, tag_patches):
             patch = patch_from_version_name(metadata.get("versionName"))
             if patch is not None:
                 patches.add(patch)
-            code = metadata.get("versionCode")
-            if isinstance(code, int) and not isinstance(code, bool):
-                codes.add(code)
         patch = patch_from_tag(release.get("tag_name"))
         if patch is not None:
             patches.add(patch)
 
     patches.update(tag_patches)
-    return max(patches) + 1, max(codes) + 1
+    patch = max(patches) + 1
+    return patch, version_code_for(f"{VERSION_NAME_PREFIX}{patch}")
 
 
 def plan_release(releases, tag_patches, sha: str) -> dict:
@@ -544,9 +590,16 @@ def cmd_stage_assets(args) -> int:
     shutil.copyfile(apk_source, directory / apk_name)
     shutil.copyfile(mapping_source, directory / MAPPING_FILE)
 
+    repository = repo_slug()
+    server = os.environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
     metadata = {
         "apkFile": apk_name,
-        "repository": repo_slug(),
+        # 以下四项是应用内更新读取的字段（规范 007 的 7.3.2）。
+        "apkUrl": f"{server}/{repository}/releases/download/v{args.version_name}/{apk_name}",
+        "sha256": file_sha256(apk_source),
+        "publishedAt": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "notes": clean_notes(args.notes),
+        "repository": repository,
         "runAttempt": str(args.run_attempt),
         "runId": str(args.run_id),
         "sha": args.sha,
@@ -605,6 +658,7 @@ def cmd_publish(args) -> int:
         expected=(200,),
     )
     note(f"已公开 {release.get('tag_name')}（make_latest={make_latest}）")
+    write_outputs({"latest": make_latest})
     write_summary(
         [
             f"### 已发布 {release.get('tag_name')}",
@@ -614,6 +668,65 @@ def cmd_publish(args) -> int:
             f"- 附件：{sorted(path.name for path in directory.iterdir())}",
         ]
     )
+    return 0
+
+
+def fetch(url: str) -> bytes:
+    """不带凭据地下载公开地址，和客户端看到的一样。"""
+    last_error = "未知错误"
+    for attempt in range(1, RETRY_ATTEMPTS + 1):
+        try:
+            with urllib.request.urlopen(
+                urllib.request.Request(url, headers={"User-Agent": "cashierhelper-release"}), timeout=120
+            ) as response:
+                return response.read()
+        except (urllib.error.URLError, OSError) as error:
+            last_error = str(getattr(error, "reason", error))
+            if attempt < RETRY_ATTEMPTS:
+                time.sleep(RETRY_BASE_DELAY * attempt)
+    fail(f"无法下载 {url}：{last_error}")
+
+
+def revoke(release_id: str, reason: str) -> None:
+    """规范 006 的 6.8：线上校验失败就撤回，改回草稿，已安装的客户端继续看到上一个版本。"""
+    note(f"撤回 Release {release_id}：{reason}")
+    try:
+        request(
+            "PATCH",
+            f"{api_base()}/repos/{repo_slug()}/releases/{release_id}",
+            data=json.dumps({"draft": True}).encode("utf-8"),
+            content_type="application/json",
+            expected=(200,),
+        )
+    except SystemExit:
+        print("error: 撤回失败，需要人工处理", file=sys.stderr)
+
+
+def cmd_verify_feed(args) -> int:
+    """规范 006 的 6.5.5：下载线上 feed，核对版本、下载地址和 SHA256。"""
+    server = os.environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
+    repository = repo_slug()
+    feed_url = args.feed_url or f"{server}/{repository}/releases/latest/download/{FEED_FILE}"
+    prefix = f"{server}/{repository}/releases/download/v{args.version_name}/"
+
+    problems = []
+    try:
+        feed = json.loads(decode(fetch(feed_url)))
+    except json.JSONDecodeError:
+        feed = None
+    problems.extend(
+        feed_errors(feed, version_name=args.version_name, version_code=int(args.version_code), download_prefix=prefix)
+    )
+    if not problems:
+        digest = hashlib.sha256(fetch(feed["apkUrl"])).hexdigest()
+        if digest != feed["sha256"].lower():
+            problems.append(f"下载到的安装包 SHA256 是 {digest}，feed 里记录的是 {feed['sha256']}")
+
+    if problems:
+        if args.release_id:
+            revoke(args.release_id, "；".join(problems))
+        fail("线上更新源校验失败：" + "；".join(problems))
+    note(f"线上更新源校验通过：{args.version_name}（versionCode {args.version_code}）")
     return 0
 
 
@@ -637,6 +750,7 @@ def main(argv=None) -> int:
     stage.add_argument("--run-id", required=True)
     stage.add_argument("--run-attempt", default="1")
     stage.add_argument("--run-url", default="")
+    stage.add_argument("--notes", default="", help="更新说明，通常是提交说明")
     stage.set_defaults(func=cmd_stage_assets)
 
     publish = subparsers.add_parser("publish", help="上传附件并公开草稿 Release")
@@ -644,6 +758,13 @@ def main(argv=None) -> int:
     publish.add_argument("--dir", required=True)
     publish.add_argument("--sha", required=True)
     publish.set_defaults(func=cmd_publish)
+
+    verify = subparsers.add_parser("verify-feed", help="发布后校验线上更新源")
+    verify.add_argument("--version-name", required=True)
+    verify.add_argument("--version-code", required=True)
+    verify.add_argument("--release-id", default="", help="校验失败时撤回这个 Release")
+    verify.add_argument("--feed-url", default="", help="默认是 latest 下的固定入口")
+    verify.set_defaults(func=cmd_verify_feed)
 
     args = parser.parse_args(argv)
     return args.func(args)

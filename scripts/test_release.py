@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import http.server
 import json
 import os
@@ -360,7 +361,7 @@ class VersionPlanTest(ReleaseTestCase):
         outputs = self.prepare()
         self.assertEqual(outputs["skip"], "false")
         self.assertEqual(outputs["version_name"], "1.0.2")
-        self.assertEqual(outputs["version_code"], "3")
+        self.assertEqual(outputs["version_code"], "1000002")
         self.assertEqual(outputs["tag"], "v1.0.2")
         self.assertEqual(self.state.refs["v1.0.2"], SHA_A)
         self.assertEqual(len(self.state.releases), 1)
@@ -371,19 +372,19 @@ class VersionPlanTest(ReleaseTestCase):
         self.seed_release("1.0.3", 4)
         outputs = self.prepare()
         self.assertEqual(outputs["version_name"], "1.0.4")
-        self.assertEqual(outputs["version_code"], "5")
+        self.assertEqual(outputs["version_code"], "1000004")
 
     def test_other_commit_draft_still_consumes_a_version(self):
         self.seed_release("1.0.2", 3, sha=SHA_B, draft=True)
         outputs = self.prepare()
         self.assertEqual(outputs["version_name"], "1.0.3")
-        self.assertEqual(outputs["version_code"], "4")
+        self.assertEqual(outputs["version_code"], "1000003")
 
     def test_tag_without_release_consumes_a_version(self):
         self.state.refs["v1.0.7"] = SHA_B
         outputs = self.prepare()
         self.assertEqual(outputs["version_name"], "1.0.8")
-        self.assertEqual(outputs["version_code"], "3")
+        self.assertEqual(outputs["version_code"], "1000008")
 
     def test_unrelated_releases_and_tags_are_ignored(self):
         self.state.releases.append(
@@ -397,7 +398,7 @@ class VersionPlanTest(ReleaseTestCase):
         self.state.refs["nightly"] = SHA_B
         outputs = self.prepare()
         self.assertEqual(outputs["version_name"], "1.0.2")
-        self.assertEqual(outputs["version_code"], "3")
+        self.assertEqual(outputs["version_code"], "1000002")
 
     def test_same_commit_draft_is_reused(self):
         first = self.prepare(run_id="1")
@@ -490,7 +491,132 @@ class PublishTest(ReleaseTestCase):
             self.assertEqual(release.file_sha256(self.assets_dir / name), digest)
 
 
+class FeedTest(ReleaseTestCase):
+    def test_staged_metadata_is_the_update_feed(self):
+        outputs = self.prepare()
+        self.stage_assets(outputs)
+        feed = json.loads((self.assets_dir / "release-metadata.json").read_text(encoding="utf-8"))
+        apk = self.assets_dir / "CashierHelper-v1.0.2.apk"
+
+        self.assertEqual(feed["versionName"], "1.0.2")
+        self.assertEqual(feed["versionCode"], 1000002)
+        self.assertEqual(
+            feed["apkUrl"], f"https://github.com/{SLUG}/releases/download/v1.0.2/CashierHelper-v1.0.2.apk"
+        )
+        self.assertEqual(feed["sha256"], release.file_sha256(apk))
+        self.assertRegex(feed["publishedAt"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+        self.assertEqual(feed["notes"], "")
+
+    def test_publish_reports_whether_the_release_became_latest(self):
+        self.publish_flow()
+        self.assertEqual(self.outputs()["latest"], "true")
+
+
+class VerifyFeedTest(ReleaseTestCase):
+    """The published feed is downloaded the way the app does it and checked."""
+
+    def serve(self, feed_for_apk, apk_bytes=b"the-apk"):
+        files = {}
+        outer = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_GET(self):
+                body = files.get(self.path)
+                if body is None:
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(body)
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        base = f"http://127.0.0.1:{server.server_address[1]}"
+        patcher = mock.patch.dict(os.environ, {"GITHUB_SERVER_URL": base})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        apk_path = f"/{SLUG}/releases/download/v1.0.2/CashierHelper-v1.0.2.apk"
+        files[apk_path] = apk_bytes
+        files["/feed.json"] = json.dumps(feed_for_apk(f"{base}{apk_path}")).encode("utf-8")
+        return f"{base}/feed.json"
+
+    def feed(self, url, digest=None, code=1000002):
+        return {
+            "versionName": "1.0.2",
+            "versionCode": code,
+            "apkUrl": url,
+            "sha256": digest or hashlib.sha256(b"the-apk").hexdigest(),
+        }
+
+    def verify(self, feed_url, release_id=""):
+        return self.run_script(
+            "verify-feed", "--version-name", "1.0.2", "--version-code", "1000002",
+            "--feed-url", feed_url, "--release-id", release_id,
+        )
+
+    def test_a_correct_feed_passes(self):
+        url = self.serve(lambda apk: self.feed(apk))
+        self.assertEqual(self.verify(url), 0)
+
+    def test_a_wrong_checksum_fails_and_revokes_the_release(self):
+        created = self.seed_release("1.0.2", 1000002)
+        url = self.serve(lambda apk: self.feed(apk, digest="0" * 64))
+
+        with self.assertRaises(SystemExit):
+            self.verify(url, str(created["id"]))
+
+        self.assertTrue(self.state.releases[0]["draft"])
+
+    def test_a_wrong_version_fails(self):
+        url = self.serve(lambda apk: self.feed(apk, code=1000001))
+        with self.assertRaises(SystemExit):
+            self.verify(url)
+
+    def test_an_unreachable_download_fails(self):
+        url = self.serve(lambda apk: self.feed(apk + "-missing"))
+        with self.assertRaises(SystemExit):
+            self.verify(url)
+
+
 class PureLogicTest(unittest.TestCase):
+    def test_version_code_follows_the_formula(self):
+        self.assertEqual(release.version_code_for("1.0.4"), 1000004)
+        self.assertEqual(release.version_code_for("1.2.3"), 1002003)
+        self.assertEqual(release.version_code_for("2.10.0"), 2010000)
+        with self.assertRaises(SystemExit):
+            release.version_code_for("1.0.1000")
+        with self.assertRaises(SystemExit):
+            release.version_code_for("1.0")
+
+    def test_version_codes_only_go_up(self):
+        codes = [release.version_code_for(f"1.0.{patch}") for patch in range(1, 30)]
+        self.assertEqual(codes, sorted(set(codes)))
+
+    def test_notes_drop_signature_lines_and_stay_short(self):
+        message = "Add sharing\n\nImages can be shared.\n\nCo-Authored-By: Someone <a@b.c>\n"
+        self.assertEqual(release.clean_notes(message), "Add sharing\n\nImages can be shared.")
+        self.assertEqual(release.clean_notes(None), "")
+        self.assertLessEqual(len(release.clean_notes("x" * 5000)), release.NOTES_LIMIT)
+
+    def test_feed_errors_name_every_problem(self):
+        prefix = "https://github.com/o/r/releases/download/v1.0.2/"
+        good = {"versionName": "1.0.2", "versionCode": 1000002, "sha256": "a" * 64, "apkUrl": prefix + "x.apk"}
+        check = lambda feed: release.feed_errors(feed, version_name="1.0.2", version_code=1000002, download_prefix=prefix)
+
+        self.assertEqual(check(good), [])
+        self.assertEqual(len(check({**good, "versionName": "1.0.3"})), 1)
+        self.assertEqual(len(check({**good, "versionCode": 1})), 1)
+        self.assertEqual(len(check({**good, "sha256": "xyz"})), 1)
+        self.assertEqual(len(check({**good, "apkUrl": "https://github.com/o/r/releases/latest/download/x.apk"})), 1)
+        self.assertEqual(len(check("nope")), 1)
+
     def test_metadata_round_trip(self):
         metadata = {
             "sha": SHA_A,
@@ -517,10 +643,10 @@ class PureLogicTest(unittest.TestCase):
             {"tag_name": "v1.0.5", "body": release.build_release_body({"versionName": "1.0.5", "versionCode": 9})},
             {"tag_name": "v1.0.9", "body": "无元数据"},
         ]
-        self.assertEqual(release.next_version(releases, set()), (10, 10))
+        self.assertEqual(release.next_version(releases, set()), (10, 1000010))
 
     def test_next_version_starts_from_the_baseline(self):
-        self.assertEqual(release.next_version([], set()), (2, 3))
+        self.assertEqual(release.next_version([], set()), (2, 1000002))
 
     def test_plan_reports_skip_for_a_published_commit(self):
         releases = [
@@ -538,7 +664,7 @@ class PureLogicTest(unittest.TestCase):
     def test_plan_ignores_deleted_draft_shapes(self):
         plan = release.plan_release([], set(), SHA_A)
         self.assertEqual(plan["action"], "create")
-        self.assertEqual((plan["version_name"], plan["version_code"]), ("1.0.2", 3))
+        self.assertEqual((plan["version_name"], plan["version_code"]), ("1.0.2", 1000002))
 
     def test_checksum_verification_rejects_missing_files(self):
         with tempfile.TemporaryDirectory() as raw:

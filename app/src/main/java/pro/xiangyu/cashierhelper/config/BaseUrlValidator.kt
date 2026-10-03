@@ -5,8 +5,10 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 object BaseUrlValidator {
     fun normalize(rawValue: String): Result<String> = runCatching {
-        val trimmed = rawValue.trim()
-        require(trimmed.isNotEmpty()) { "请输入服务器地址" }
+        val typed = rawValue.trim()
+        require(typed.isNotEmpty()) { "请输入服务器地址" }
+        // People type a bare domain; Cashier is only ever reached over HTTPS, so assume it.
+        val trimmed = if ("://" in typed) typed else "https://$typed"
 
         // Use OkHttp's parser so validation matches the exact URL that the
         // request layer will resolve, instead of Java's more permissive URI.

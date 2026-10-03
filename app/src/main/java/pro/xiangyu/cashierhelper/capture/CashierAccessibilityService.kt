@@ -1,41 +1,22 @@
 package pro.xiangyu.cashierhelper.capture
 
-import android.accessibilityservice.AccessibilityButtonController
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
-import android.os.Handler
-import android.os.Looper
 import android.view.accessibility.AccessibilityEvent
 import java.lang.ref.WeakReference
-import pro.xiangyu.cashierhelper.ui.LauncherActivity
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * Provides the only platform capability the app needs: taking a screenshot.
- *
- * The service no longer owns networking or analysis; it just reports when it is
- * connected and exposes a [ScreenshotSource]. All job lifecycle work lives in
- * the application-level task coordinator so tasks survive a service restart.
+ * Exists only to take screenshots. The class name is part of how Android and
+ * the saved accessibility setting find this service, so it must not change.
  */
 class CashierAccessibilityService : AccessibilityService() {
-    private val accessibilityButtonCallback =
-        object : AccessibilityButtonController.AccessibilityButtonCallback() {
-            override fun onClicked(controller: AccessibilityButtonController) {
-                startActivity(
-                    Intent(this@CashierAccessibilityService, LauncherActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                )
-            }
-        }
-
     override fun onServiceConnected() {
         super.onServiceConnected()
         activeService = WeakReference(this)
-        runCatching {
-            accessibilityButtonController.registerAccessibilityButtonCallback(
-                accessibilityButtonCallback,
-                Handler(Looper.getMainLooper()),
-            )
-        }
+        mutableRunning.value = true
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) = Unit
@@ -53,24 +34,22 @@ class CashierAccessibilityService : AccessibilityService() {
     }
 
     private fun detach() {
-        runCatching {
-            accessibilityButtonController.unregisterAccessibilityButtonCallback(
-                accessibilityButtonCallback,
-            )
+        if (activeService?.get() === this) {
+            activeService = null
+            mutableRunning.value = false
         }
-        if (activeService?.get() === this) activeService = null
     }
-
-    private fun newScreenshotSource(): ScreenshotSource = AccessibilityScreenshotSource(this)
 
     companion object {
         @Volatile
         private var activeService: WeakReference<CashierAccessibilityService>? = null
+        private val mutableRunning = MutableStateFlow(false)
+
+        /** True while the system has the service bound. */
+        val running: StateFlow<Boolean> = mutableRunning.asStateFlow()
 
         fun isConnected(): Boolean = activeService?.get() != null
 
-        /** Returns a fresh source while the service is connected, else null. */
-        fun screenshotSource(): ScreenshotSource? =
-            activeService?.get()?.newScreenshotSource()
+        fun active(): CashierAccessibilityService? = activeService?.get()
     }
 }

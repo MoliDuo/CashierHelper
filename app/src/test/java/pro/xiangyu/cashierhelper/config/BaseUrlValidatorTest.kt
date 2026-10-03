@@ -42,8 +42,16 @@ class BaseUrlValidatorTest {
     @Test
     fun `rejects blank and unparsable addresses`() {
         assertEquals("请输入服务器地址", BaseUrlValidator.normalize("   ").exceptionOrNull()?.message)
-        assertTrue(BaseUrlValidator.normalize("cashier.example.com").isFailure)
         assertTrue(BaseUrlValidator.normalize("not a url").isFailure)
+    }
+
+    @Test
+    fun `a bare domain is assumed to be https`() {
+        assertEquals("https://cashier.example.com", BaseUrlValidator.normalize("cashier.example.com").getOrThrow())
+        assertEquals(
+            "https://cashier.example.com:8443/app",
+            BaseUrlValidator.normalize(" Cashier.Example.com:8443/app/ ").getOrThrow(),
+        )
     }
 
     @Test

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 状态栏小图标：只能是单色。双环硬币在这个尺寸下看不清，所以简化成一段弧加一张小票。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M10 6A6 6 0 0 0 10 18"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="1.8" />
+    <path
+        android:pathData="M12.5 5.5H19.5V18.5H14.5A2 2 0 0 1 12.5 16.5Z"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineJoin="round"
+        android:strokeWidth="1.8" />
+    <path
+        android:pathData="M15 9.5H17.5M15 12.5H17.5"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeLineCap="round"
+        android:strokeWidth="1.6" />
+</vector>

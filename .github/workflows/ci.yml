@@ -43,8 +43,10 @@ jobs:
       - name: Test the release tooling
         run: python3 scripts/test_release.py
 
+      # assembleRelease 在没有签名材料时产出未签名包，但仍会跑 R8 和 lintVital，
+      # 能在合并前发现压缩规则缺失。
       - name: Test, lint and assemble the app
-        run: ./gradlew --stacktrace testDebugUnitTest lintDebug assembleDebug
+        run: ./gradlew --stacktrace testDebugUnitTest lintDebug assembleDebug assembleRelease
 
       - name: Upload the test and lint reports
         if: failure()
